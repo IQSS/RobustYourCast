@@ -1,0 +1,596 @@
+\documentclass[oneside,letterpaper,titlepage]{article}
+%\usepackage[notref]{showkeys} % [notref]
+\usepackage{Rd/Rd}
+\usepackage{Rd/Sweave}
+\usepackage{Rd/upquote}
+
+\usepackage[reqno]{amsmath}
+\usepackage{inputenc}
+\usepackage{natbib}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{stmaryrd}
+\usepackage{bbm}
+\usepackage{epsf}
+\usepackage{psfig}
+%\usepackage{wcolor}
+\usepackage{textcomp} % for \texttrademark
+\usepackage{makeidx}
+
+\usepackage{verbatim}
+% \usepackage{epsf}
+\usepackage{url}
+\usepackage{html}
+\usepackage{dcolumn}
+\usepackage{longtable}
+%\usepackage{vmargin}
+\topmargin=0in
+\def\fp#1{\mathbbm{#1}}
+
+%\setpapersize{USletter}
+%\newcolumntype{.}{D{.}{.}{-1}}
+%\newcolumntype{d}[1]{D{.}{.}{#1}}
+%\pagestyle{myheadings}
+%\htmladdtonavigation{
+%  \htmladdnormallink{%
+%    \htmladdimg{http://gking.harvard.edu/pics/home.gif}}
+%  {http://gking.harvard.edu/}}
+%\newcommand{\hlink}{\htmladdnormallink}
+%\bodytext{ BACKGROUND="http://gking.harvard.edu/pics/temple.jpg"}
+%\setcounter{tocdepth}{3}
+
+\pagestyle{headings}
+\newcommand{\YourCast}{\textsc{YourCast}}
+\newcommand{\ryc}{\textsc{RobustYourCast}}
+
+\title{\ryc: Robust Bayesian Forecasting with \YourCast\thanks{Available from
+    http://GKing.Harvard.Edu/robustyourcast via a Creative Commons
+    Attribution-Noncommercial-No Derivative Works 3.0, for academic
+    use only.}}
+
+\author{Jon Bischof\thanks{Department of Government, Harvard
+    University.} \and Gary King\thanks{Albert J.\ Weatherhead III
+    University Professor, Harvard University (Institute for
+    Quantitative Social Science, 1737 Cambridge Street, Harvard
+    University, Cambridge MA 02138; \texttt{http://GKing.Harvard.Edu},
+    \texttt{King@Harvard.edu}, (617) 495-2027).} \and Samir
+  Soneji\thanks{Robert Wood Johnson Foundation Health \& Society
+    Scholar, University of Pennsylvania}}
+
+\makeindex
+
+%\VignetteIndexEntry{Time Series Forecasting with Your Assumptions}
+%\VignetteDepends{YourCast}
+%\VignetteKeyWords{time series, forecasting}
+%\VignettePackage{YourCast}
+
+\parskip=5pt
+\begin{document}
+\maketitle
+\tableofcontents
+
+%\pagebreak
+
+
+
+\abstract{\ryc\ is a streamlined and user-friendly version of
+  \YourCast\ software, which focuses on generating forecasts for
+  multiple cross-sections over time, limited to a single geographic
+  region.  In the YourCast framework, individual hyperprior parameters
+  are easy to interpret, but applications often require the
+  simultaneous use of multiple priors, such as for the smoothness of
+  forecasts across groups, time, and in trends across groups; in this
+  situation, hyperprior parameters can be difficult to interpret and
+  set.  \ryc\ introduces a framework that makes setting multiple
+  priors easy.  The general strategy is to fit an objective function
+  based on smoothness and fit to a subset of the data, and to use the
+  results of that analysis to set the prior for all (or the remaining)
+  data.}
+
+\section{Introduction}
+
+``YourCast: Time Series Cross-Sectional Forecasting With Your
+Assumptions'' (\url{http://gking.harvard.edu/yourcast}) implements a
+comprehensive approach to forecasting developed for the \R\ Project
+for Statistical Computing.  It can fit any member of a new class of
+Bayesian models proposed in \citet{GirKin08}, all with a single user
+interface.  The idea of \YourCast\ is to fit a large set of linear
+regressions simultaneously with priors that tie them all together.  An
+example application is a set of relatively short annual mortality time
+series with covariates, for each age group, sex, race, country, and
+cause of death.  Estimating each regression separately would be very
+noisy and yield poor forecasts.  This new approach allows users to put
+informative priors on the expected value of the outcome variable,
+about which users typically know a great deal, rather than on the
+parameters (i.e., the coefficients), about which they know very
+little.  This approach greatly reduces the number of hyperprior
+parameters and enables researchers to include different covariates in
+the regression from each of the cross-sections (such as including
+tobbaco consumption as a predictor for adult mortality but not infant
+mortailty), but it still enables one to smooth over age groups, time
+trends, time trends across age groups, countries, time trends in
+neighboring countries, etc.
+
+In this paper we introduce \ryc, a streamlined version of the
+\YourCast\ software which makes it easy for users to fit all the
+special cases of these models that run within a single geographic
+region (but still with many cross-sectional groups such as age by
+sex).  The idea is to estimate optimal values for the hyperprior
+parameters from a small subset of the data, using prior information,
+fit, and easy methods of interacting with the data and results.  With
+these estimates, the user would then a much better sense of how to set
+the priors for the rest of the data. 
+
+Consider the problem of forecasting all-cause mortality for multiple
+age groups of males in the United States. Rather than producing a
+single forecast for all males or estimating separate forecasts for
+each age group, \YourCast\ incorporates one's prior beliefs about how
+smoothly mortality should change across age groups and time as well as
+the similarity of time trends across age groups. For example, one may
+believe that 30 and 35 year olds should die at similar rates, that the
+mortality rate for 30 year olds in 1980 should be similar to the rate
+in 1981, or that if death rates for 30 year olds are falling then
+rates for 35 year olds likely fell as well.  These beliefs are
+formalized into three smoothness parameters---$\sigma_{a}$,
+$\sigma_{t}$, and $\sigma_{at}$---which if specified individually
+would indicate the average distance between neighboring age groups,
+time periods, or time trends respectively.  
+
+If each prior is used separately, its values are highly intuitive.
+For example, setting $\sigma_{a}=0.1$ means that one believes that log
+mortality between neighboring age groups differs by about 0.1, which
+is even easy to set based on many earlier data sets.  However, if one
+attempts more than one type of smoothing in a model, these parameters
+no longer have an intuitive interpretation.  Furthermore, it is
+difficult to anticipate how multiple smoothness priors will interact
+in posterior inference---for instance, it may be that enforcing
+smooth time trends could be accomplished by either setting
+$\sigma_{at}$ close to zero or slightly relaxing $\sigma_{t}$.
+Importantly, the common trends achieved in the latter are likely to be
+less linear.  We offer a way around this difficulty.
+
+Bayesian modeling such as this also presents a bias-variance trade-off
+which in this case is represented by smoothness vs in sample fit.  We
+do not want noisy data to make our forecasts choppy across neighboring
+age groups or time periods, but we also do not want to force them to
+follow smooth trends to the point where we are ignoring systematic
+patterns in the data.
+
+\ryc\ allows analysts to disentangle the interactions between
+different smoothness parameters and how each combination affects
+prediction error. We accomplish this through cross-validation, where
+we omit a block of observations at the end of the observation period
+and then produce a forecast for those omitted years as well as our
+original years of interest using a set of candidate smoothing
+priors---$\sigma^{*}_{a}$, $\sigma^{*}_{t}$, and $\sigma^{*}_{at}$.
+For each set of candidates, we score the resulting forecasts based on
+how much they lack smoothness in their time and age profiles,
+similarity in time trends, and ability to predict outcomes in the
+omitted years. These four measures are then combined into a weighted
+average of undesireables, with the weights chosen by the user to
+reflect his or her relative tolerance for each. The problem of finding
+an ``optimal'' forecast can now be formalized as finding the prior
+parameters that minimize this objective
+function.%\footnote{This technique similar in spirit to posterior
+         %predictive checking (Gelman et al. 2004) in that we look at
+         %the expected value of data generated with parameters from
+         %the posterior mode to assess whether the fit is
+         %scientifically plausible and similar to the observed data.}
+
+This approach allows users to directly observe relevant trade-offs
+when calibrating their smoothness parameters by changing the weights.
+For example, a forecast which minimizes an objective function with
+most weight on prediction error will probably fit the data well but
+not be very smooth. An analyst particularly dissatisfied with wildly
+divergent time trends can then begin shifting weight away from
+prediction error and toward time trend smoothness to see how much
+prediction error he or she would have to gain to get satisfactory
+trending behavior. These trade-offs can then be analyzed for all four
+of the optimality conditions, allowing one to carefully calibrate the
+choice of smoothness parameters for application in the current of
+similar forecasting exercises. For example, if one wanted to predict
+mortality for males in the 50 US states, one could calibrate the prior
+parameters using a handful of representative states and then use those
+priors for each state in the country.
+
+\section{Objective function measurement}
+In this section we briefly discuss how the four components of the
+objective function---prediction error, smoothness of time profiles,
+smoothness of age profiles, and deviance in time trends---are
+measured. For all diagnostics any missing observations are removed
+from the calculation.  These are the four components:
+\begin{itemize}
+\item \emph{Prediction error} for all of the omitted years in all
+  groups, we measure sum of the root mean square error of the
+  out-of-sample forecasts.
+\item \emph{Age smoothness} is measured as the arc lengths of age
+  profiles from the validation period once the mean age profile from
+  the validation period is removed. Arc length will be shortest when
+  these demeaned profiles are flat---i.e., the same as the mean or
+  differing by a constant. In contrast, profiles which change
+  constantly with respect to the mean will be receive high scores.
+  (Other measures may be substituted for the arc length if desired.)
+\item \emph{Time smoothness} is measured as the arc length of each
+  time profile's deviation from its own trend line. Here we allow the
+  user to choose the degree of the polynomial to which the time
+  profiles are smoothed. For example, if a first degree polynomial is
+  chosen, linear time profiles will have the lowest score; zero degree
+  polynomials will give the lowest score to the flattest time
+  profiles.
+\item \emph{Trend deviations} are measured by removing the constant
+  from all the time profiles (so that each has mean zero) and
+  measuring the arc length of their deviations from the mean time
+  profile. The result is very similar to our measure of age profile
+  smoothness: the profiles scored lowest will follow or be parallel to
+  the mean time profile.
+\end{itemize}
+
+Using the shorthands \texttt{RSS}, \texttt{Age AL}, \texttt{Time AL},
+and \texttt{Trend dev}, respectively, for these components, we express
+the objective function as:
+\begin{equation*}
+  f(\texttt{RSS}, \texttt{Age AL}, \texttt{Time AL}, \texttt{Trend dev}) = w_{1}\sqrt{\texttt{RSS}} + w_{2}(\texttt{Age AL}) + w_{3}(\texttt{Time AL}) + w_{4}(\texttt{Trend dev})
+\end{equation*}
+where $\vec{w}$ is chosen by the user subject to
+$\sum_{i=1}^{4}w_{i}=1$. Since all four diagnostics take values in
+$[0,\infty)$, they are not possible to normalize. An important
+consequence is that the absolute values of the weights have no
+intuitive interpretation; only comparisons of different weighting
+schemes with the same data are meaningful. In fact, in particularly
+noisy data values of \texttt{RSS} will be high relative to other
+diagnostics and can thus be ignored.
+
+In our experience, the objective function surface tends to be
+multimodal but locally well behaved. We thus use a grid search to
+narrow down the search.  We recommend that users start with a coarse
+grid search and then use the minimum from that as the starting point
+for a more direct optimization method such as BFGS.  \ryc\ provides
+tools to visualize and optimize the user's objective function, as
+documented in the next section.
+
+\section{User's Guide}
+
+\subsection{Installation}
+From the \R\ command line, type
+  \begin{verbatim}
+  > install.packages("RobustYourCast", repos="http://gking.harvard.edu") .
+  \end{verbatim}
+% we can change this when its in cran
+
+\subsection{Loading data}
+\ryc\ uses much of the basic architecture of \YourCast, including how
+data is formatted. For \YourCast\ to make forecasts for multiple cross
+sections, a separate array with a response and covariates is needed
+for each cross section. With the case of US males, we require a data
+array for each age group with mortality rates for some observation
+period and covariates with observations in both the observation period
+and adjacent forecast period. While the observation and forecast
+periods must be identical for each age group (allowing for missing
+data), one of the main advantages of \YourCast\ is that each age group
+may have different covariates (see Girosi and King (2008))
+
+These arrays, along with other identifying information, must be
+concatenated into a single list object we call a \texttt{dataobj}. The
+\texttt{yourprep} function in the \YourCast\ package can assist users
+to load data from multiple formats, lag covariates as needed, and
+concatenate this information into an \R\ object \texttt{yourcast} can
+read. For detailed instructions, please see the \YourCast\ manual and
+the online help pages for \texttt{yourprep} and \texttt{yourcast}.
+
+\subsection{Setting up a \YourCast\ call}
+In order to illustrate how functions in \ryc\ are used, we will focus
+on the specific problem of forecasting breast cancer mortality in
+Belgium. We observe mortality rates from 1950-2000 and would like to
+forecast future mortality from 2001 to 2030. To inform our
+predictions, we include five covariates: human capital (\texttt{hc}),
+GDP (\texttt{gdp}), tobacco use (\texttt{tobacco3}), obesity rates
+(\texttt{fat}), and a time trend (\texttt{time}). While our ultimate
+goal is to find optimal smoothing priors to get a reasonable forecast,
+it is often helpful to first look at the least squares fit, one of the
+models that can be run in \texttt{yourcast}. Besides a formula object
+and the \texttt{dataobj} described in the previous section, the only
+other argument required to \texttt{yourcast} is a vector with the
+start and end dates our observation and forecast periods, called
+\texttt{sample.frame}.
+
+We then make our call to \texttt{yourcast} to get an output object:
+
+\begin{verbatim}
+ff <- log(brst3/popu3) ~ log(hc) + log(gdp) + log(tobacco3) + log(fat)+ time
+out.ols <- yourcast(formula=ff,
+                    model="ols"
+                    dataobj=dataobj.belgium,
+                    sample.frame=c(1950,2000,2001,2030))
+\end{verbatim}
+ 
+
+We now have an output object called \texttt{out.ols}. We can easily
+visualize our forecasts with a simple call to \code{plot}:
+\begin{verbatim}
+plot(out.ols,print="pdf",file="belgium_ols.pdf")
+\end{verbatim}
+where extra options have been specified to save a PDF file in the
+working directory. We have reproduced this plot in Figure \ref{ols}.
+Here we can see a significant increase in the variance of mortality
+across age groups in the forecast period, and well as unlikely
+intersections in the age profiles; e.g., 50 year olds eventually dying
+at lower rates than 40 year olds. Therefore the introduction of
+informative smoothing priors with the Bayesian models seem promising.
+
+\begin{figure}[t]
+\begin{center}
+\caption{Least squares forecast for breast cancer mortality in Belgium (no smoothing)}
+\label{ols}
+\includegraphics[width=6in, height=3in]{belgium_ols.pdf}
+\end{center}
+\end{figure} 
+
+The \texttt{"map"} model in \texttt{yourcast} yourcast that allows us
+to introduce smoothing priors, with each type of smoothing a separate
+argument to the function: $\sigma_{a}$ is \texttt{Ha.sigma},
+$\sigma_{t}$ is \texttt{Ht.sigma}, and $\sigma_{at}$ is
+\texttt{Hat.sigma}. Thus if we wanted fairly strong smoothing we could
+run the model:
+
+\begin{verbatim}
+out.map <- yourcast(formula=ff,
+                    sample.frame=c(1950,2000,2001,2030),
+                    dataobj=dataobj.belgium,
+                    model="map",
+                    Ha.sigma=0.1,Ht.sigma=0.1,Hat.sigma=0.1)
+plot(out.map)
+\end{verbatim}
+
+The results look promising, but how can we see different possibilities
+that emphasize greater fit to the data or more similar time trends? By
+forming an objective function using \ryc\, we will be able to find
+optimal forecasts given our personal preferences for different
+optimality criteria.
+
+\subsection{Grid search}
+Once we decide on a set of weights for our objective function, \ryc\
+offers two optimization methods: a grid search function called
+\texttt{robust.yourcast} and a general purpose optimization function
+called \texttt{optim.yourcast} that can call \texttt{optim} or
+\texttt{rgenoud}. In practice, these two methods are best used in
+conjunction, building up a picture of the objective function surface
+with \texttt{robust.yourcast} and then using the minimum from the grid
+search as a starting point for one of the optimization algorithms
+implemented in \texttt{optim.yourcast}. Since the objective function
+surface is almost never unimodal, a thorough grid search is critical.
+
+We start with the grid search function \texttt{robust.yourcast}. We
+first need decide at which points in the space of positive real
+numbers $\mathbb{R}^{3}_{+}$ we want to evaluate the function. The
+arguments \texttt{H*.sigma.range} sets the range for each parameter
+and the arguments \texttt{N.*} set the number of points to test in
+that range. By default, these points are evenly spaced out on the log
+scale to increase the number of lower values tested---changing
+$\sigma_a$ from 0.1 to 0.01 has much more impact than a change from 10
+to 9.9. We then set the desired weights with the \texttt{weights}
+argument, which will be a length-four vector of positive numbers that
+will be normalized by the function if they do not sum to one already.
+
+Since \texttt{robust.yourcast} works through cross-validation, we also
+have to decide which block of observations to omit and try to predict
+with our model. The argument \texttt{length.block} specifies the
+number of years in the validation block; then we then only need to
+specify the last year in the block. By default, \texttt{end.block} is
+set to \texttt{"last"}, the last observed year, since in practice
+omitting a block of observations and the end is the only meaningful
+proxy for an actual forecast.
+
+It is helpful to use the \texttt{runs.save} argument, which stores the
+output from the computationally intensive part of the grid search so
+that changes to the weights can be made with little additional
+computation. Finally, we also pass on the basic arguments to
+\texttt{yourcast}:
+
+\begin{verbatim}
+out.rob <- robust.yourcast(# Set up sigma grid
+                           Ha.sigma.range=c(0.01,10),
+                           Hat.sigma.range=c(0.01,10),
+                           Ht.sigma.range=c(0.01,10),
+
+                           # How many points to test in each range?
+                           N.Ha=15,
+                           N.Ht=15,
+                           N.Hat=15,
+
+                           # Weights
+                           weights=c(0.5,0.25,0.25,0),
+                           
+                           # Length and positions of blocks
+                           length.block=7,
+                           end.block="last",
+
+                           runs.save="belgium-runs.RData",
+                           
+                           # yourcast() call
+                           formula=ff,
+                           dataobj=dataobj.belgium,
+                           model="map",
+                           sample.frame=c(1950,2000,2001,2030))
+\end{verbatim}
+We then see the number of runs and a notification each time one completes:
+
+\begin{verbatim}
+[1] "Starting 3375 yourcast() runs"
+[1] "Done with run 1"
+[1] "Done with run 2"
+[1] "Done with run 3"
+[1] "Done with run 4"
+...
+[1] "Done with run 3375"
+\end{verbatim}
+
+\begin{figure}[p]
+\begin{center}
+\caption{Plot of objective function for breast cancer case with weights $=(0.5,0.25,0.25,0)$}
+\label{objplot}
+\includegraphics[width=6in, height=6in]{belgium_objplot.pdf}
+\end{center}
+\end{figure} 
+
+Increasing the total number of points to evaluate is always better,
+but at the obvious cost of computational intensity. Usually a
+$10\times10\times10$ grid is sufficient, but here we move to a
+$15\times15\times15$ grid since the objective function surface is
+poorly behaved for many choices of weights in this example.
+
+Once the grid search is complete, we can visualize the objective
+function surface for our choice of weights using the \texttt{plot}
+command:
+
+\begin{figure}[th!]
+\begin{center}
+\caption{Optimal forecast with weights $=(50,25,25,00)$}
+\label{forecast1}
+\includegraphics[width=6in, height=3in]{belgium-forecast-50-25-25-00.pdf}
+\end{center}
+\end{figure} 
+
+\begin{verbatim}
+plot(out.rob,print="pdf",filename="belgium_objplot.pdf")
+\end{verbatim}
+The resulting plot is presented in Figure \ref{objplot}. Here we can
+see that the surface of the function is not particularly well behaved.
+Since the parameters are constrained to the positive octant, we often
+find the optimum lodged in the corner. Plots of the objective function
+are also helpful to tease out relationships between the smoothing
+parameters; for example, in this plot apparently $\sigma_{a}$ has
+little impact given that $\sigma_{at}=0.05$.
+\texttt{plot.robust.yourcast} can generate plots for the individual
+components of the objective function by changing the \texttt{family}
+argument from its default.
+
+Finally, we can easily plot the forecast generated by the grid search
+minimum with the \texttt{run.opt} function:
+
+\begin{verbatim}
+run.opt(out.rob)
+\end{verbatim}
+The resulting forecast can be found in Figure \ref{forecast1}. The
+user can always override any of the ``optimum" parameters with the
+\texttt{H*.set} argument to \texttt{run.opt}.
+
+Users can get information about the basic information about any
+\texttt{robust.yourcast} output object with the \texttt{summary}
+command:
+
+\begin{verbatim}
+> summary(out.rob)
+Observed period: 1950-2000
+Forecast period: 2001-2030
+
+Validation blocks:
+      year.1 year.2 year.3 year.4 year.5 year.6 year.7
+run.1   1994   1995   1996   1997   1998   1999   2000
+
+Weights:
+      RSS    Age AL   Time AL Trend Dev 
+     0.50      0.25      0.25      0.00 
+
+Grid search range:
+Ha.sigma:  0.01 - 10
+Ht.sigma:  0.01 - 10
+Hat.sigma: 0.01 - 10
+
+Optimal sigma combination:
+ Ha.sigma  Ht.sigma Hat.sigma 
+    0.518     0.518     0.010 
+\end{verbatim}
+
+Similar output is generated when \texttt{summary} is used on a \texttt{optim.yourcast} output object.
+
+
+\subsection{Direct optimization}
+\ryc\ includes the function \texttt{optim.yourcast}, which can
+directly optimize the objective function by making calls to
+\texttt{optim} or \texttt{rgenoud}. The arguments to
+\texttt{optim.yourcast} are almost identical to
+\texttt{robust.yourcast} except that the user must specify the type of
+optimization to employ rather than the grid points.
+
+However, direct optimization rarely works without a good starting
+point provided by a grid search. \ryc\ makes it very easy to pass the
+result of a grid search on to an optimizer with the call:
+
+\begin{verbatim}
+out.opt <- optim.yourcast(out.rob)
+\end{verbatim}
+Here \texttt{optim.yourcast} will automatically transfer all relevant
+information about the \texttt{yourcast} model from the
+\texttt{robust.yourcast} output object. Optimization will be started
+at the optimum point identified in the grid search with default method
+\texttt{BFGS} from \texttt{optim}. Since the parameter space is
+constrained, the function by default reparameterizes the search into
+log space, although these and several other options can be tweaked by
+the user.
+
+Once optimization is complete, the resulting forecast can be plotted with \texttt{run.opt}:
+\begin{verbatim}
+run.opt(out.opt,print="pdf",filename="belgium_forecast_50-25-25-00.pdf")
+\end{verbatim}
+
+
+\begin{figure}[th!]
+\begin{center}
+\caption{Optimal forecasts with weights (20,00,80,00), (20,00,40,40), and (70,20,10,00)}
+\label{forecasts}
+\includegraphics[width=6in, height=3in]{belgium-forecast-20-00-80-00.pdf}
+%\caption{Optimal forecasts with weights 20-00-40-40}
+\includegraphics[width=6in, height=3in]{belgium-forecast-20-00-40-40.pdf}
+%\caption{Optimal forecasts with weights 70-20-10-00}
+\includegraphics[width=6in, height=3in]{belgium-forecast-70-20-10-00.pdf}
+\end{center}
+\end{figure} 
+
+\subsection{Refinements}
+Once an initial grid search is completed, \ryc\ allows users to
+experiment with different objective function weights with minimal
+additional computation. One can test a different set of weights with
+another call to \code{robust.yourcast} specifying only the
+\code{.RData} object where the runs are stored and the new weights.
+For example, a user interested in forecasts with linear time profiles
+could try
+
+\begin{verbatim}
+out.rob20.00.80.00 <- robust.yourcast(runs.load="belgium-runs.RData",
+                                 weights=c(0.20,0,0.8,0))
+run.opt(out.rob20.00.80.00)
+\end{verbatim}
+which will launch a plot with the new forecast in less than a minute. A user can then add more emphasis on smooth time trends or prediction error with the calls
+
+\begin{verbatim}
+out.rob20.00.40.40 <- robust.yourcast(runs.load="belgium-runs.RData",
+                                 weights=c(0.20,0,0.4,0.4))
+run.opt(out.rob20.00.40.40)
+
+out.rob70.20.10.00 <- robust.yourcast(runs.load="belgium-runs.RData",
+                                 weights=c(0.70,0.2,0.1,0))
+run.opt(out.rob70.20.10.00)
+\end{verbatim}
+If desired, each \texttt{robust.yourcast} output can also be further refined by \texttt{optim.yourcast} before being sent to \texttt{run.opt}.
+
+The plots discussed in this section are displayed in Figure \ref{forecasts}.
+
+\section{Reference}
+
+The following pages list the main functions in \ryc\ with
+detailed reference information.  These can also be loaded from \R\ 
+with the standard help command, such as \code{help(robust.yourcast)}.
+
+\include{Rd/robust.yourcast}
+\include{Rd/optim.yourcast}
+\include{Rd/plot.robust.yourcast}
+\include{Rd/run.opt}
+\include{Rd/plot.diag}
+
+\bibliographystyle{apsr}
+\bibsep=0in
+\bibliography{gk.bib,gkpubs.bib}
+
+\end{document}
+

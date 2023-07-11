@@ -1,0 +1,20 @@
+export(
+       # Functions to be called by users
+       robust.yourcast,plot.robust.yourcast,
+       run.opt,optim.yourcast,plot.diag)
+
+      # # Functions left here for debugging purposes
+      # new.lapply, rss,
+      # movement.over.time, movement.over.age,
+      # pred.extract,
+      # quantile.condor.run, condor.run,
+      # extract.test.fun, quantile.yourcast,
+      # parse.quantile, parse.robust,
+      # createvalidobj, diags.valid, condor.load,
+      # optim.fn)
+
+S3method(plot, robust.yourcast)
+S3method(print, robust.yourcast)
+S3method(summary, robust.yourcast)
+S3method(print, optim.yourcast)
+S3method(summary, optim.yourcast)

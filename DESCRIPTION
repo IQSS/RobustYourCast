@@ -1,0 +1,14 @@
+Package: RobustYourCast
+Version: 0.1-10
+Date: 2010-04-03
+Title: Robust Bayesian Forecasting with YourCast
+Author: Jon Bischof <jbischof@fas.harvard.edu>
+         Gary King <king@harvard.edu>
+	 Samir Soneji <ssoneji@princeton.edu>
+Maintainer: Gary King <king@harvard.edu>
+Depends: R (>= 1.9.0), YourCast, foreign, lattice
+Description: Generate Yourcasts under range of prior specifications, ranking predictions by smoothness and RSS diagnostics.
+License: GPL version 2 or newer
+URL: http://gking.harvard.edu/robustyourcast
+Suggests: rgenoud
+Packaged: 2010-04-04 00:13:08 UTC; rbuild2
